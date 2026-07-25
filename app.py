@@ -3,6 +3,7 @@ from apify_client import ApifyClient
 from google import genai
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # ตั้งค่าหน้าตาของเว็บ
 st.set_page_config(page_title="AI เรียบเรียงข่าวสารอัจฉริยะ", page_icon="📰", layout="centered")
@@ -20,8 +21,40 @@ url = st.text_input("🔗 วางลิงก์ข่าวสารที่
 def scrape_content(url_link, token):
     url_lower = url_link.lower()
     
-    # 1. กรณีเป็น Facebook
-    if "facebook.com" in url_lower or "fb.watch" in url_lower or "fb.com" in url_lower:
+    # 1. กรณีเป็น X (Twitter) - ใช้ระบบดึงตรงความเร็วสูง
+    if "x.com" in url_lower or "twitter.com" in url_lower:
+        match = re.search(r'(?:twitter|x)\.com/([^/]+)/status/(\d+)', url_link)
+        if match:
+            user, tweet_id = match.groups()
+            vx_api_url = f"https://api.vxtwitter.com/{user}/status/{tweet_id}"
+            try:
+                headers = {"User-Agent": "Mozilla/5.0"}
+                resp = requests.get(vx_api_url, headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    tweet_text = data.get("text", "")
+                    user_name = data.get("user_name", "")
+                    if tweet_text:
+                        full_content = f"โพสต์โดย {user_name}:\n{tweet_text}"
+                        return full_content, "X (Twitter)"
+            except Exception as e:
+                pass
+        
+        # สำรองกรณีดึงตรงไม่ได้ ให้ลอง Apify
+        apify_client = ApifyClient(token)
+        run_input = {"tweetURLs": [url_link], "startUrls": [url_link], "maxItems": 1}
+        run = apify_client.actor("apidojo/tweet-scraper").call(run_input=run_input)
+        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "default_dataset_id", getattr(run, "defaultDatasetId", None))
+        
+        extracted_text = ""
+        for item in apify_client.dataset(dataset_id).iterate_items():
+            text_content = item.get("text") or item.get("fullText") or item.get("full_text") or ""
+            if text_content:
+                extracted_text += text_content + "\n"
+        return extracted_text, "X (Twitter)"
+
+    # 2. กรณีเป็น Facebook
+    elif "facebook.com" in url_lower or "fb.watch" in url_lower or "fb.com" in url_lower:
         apify_client = ApifyClient(token)
         run_input = {"startUrls": [{"url": url_link}], "resultsLimit": 1}
         run = apify_client.actor("apify/facebook-posts-scraper").call(run_input=run_input)
@@ -33,21 +66,6 @@ def scrape_content(url_link, token):
             if text_content:
                 extracted_text += text_content + "\n"
         return extracted_text, "Facebook"
-
-    # 2. กรณีเป็น X (Twitter)
-    elif "x.com" in url_lower or "twitter.com" in url_lower:
-        apify_client = ApifyClient(token)
-        # เปลี่ยนเป็น Actor 'apidojo/tweet-scraper' ที่มีอยู่จริงบน Apify
-        run_input = {"startUrls": [url_link], "maxItems": 1}
-        run = apify_client.actor("apidojo/tweet-scraper").call(run_input=run_input)
-        dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "default_dataset_id", getattr(run, "defaultDatasetId", None))
-        
-        extracted_text = ""
-        for item in apify_client.dataset(dataset_id).iterate_items():
-            text_content = item.get("full_text") or item.get("text") or item.get("caption") or ""
-            if text_content:
-                extracted_text += text_content + "\n"
-        return extracted_text, "X (Twitter)"
 
     # 3. กรณีเป็นเว็บไซต์ข่าวทั่วไป
     else:
@@ -69,10 +87,10 @@ def scrape_content(url_link, token):
 if st.button("🚀 เริ่มเรียบเรียงข่าว", type="primary"):
     if not url:
         st.warning("กรุณาวางลิงก์ข่าวสารก่อนครับ")
-    elif not gemini_api_key or not apify_token:
-        st.error("ไม่พบคีย์ API ในระบบ Secrets กรุณาตั้งค่าใน Streamlit Cloud")
+    elif not gemini_api_key:
+        st.error("ไม่พบคีย์ GEMINI_API_KEY ในระบบ Secrets กรุณาตั้งค่าใน Streamlit Cloud")
     else:
-        with st.spinner("กำลังดึงข้อมูลและเรียบเรียงข่าวใหม่... (อาจใช้เวลา 10-15 วินาที)"):
+        with st.spinner("กำลังดึงข้อมูลและเรียบเรียงข่าวใหม่..."):
             try:
                 raw_text, source_type = scrape_content(url, apify_token)
 
@@ -98,7 +116,7 @@ if st.button("🚀 เริ่มเรียบเรียงข่าว", t
 
                     gemini_client = genai.Client(api_key=gemini_api_key)
                     response = gemini_client.models.generate_content(
-                        model="gemini-3.6-flash",
+                        model="gemini-2.0-flash",
                         contents=prompt
                     )
 
