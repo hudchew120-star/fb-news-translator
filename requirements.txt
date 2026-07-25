@@ -1,3 +1,5 @@
 streamlit
 apify-client
 google-genai
+requests
+beautifulsoup4
