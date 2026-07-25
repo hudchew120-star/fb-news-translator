@@ -58,7 +58,7 @@ if st.button("🚀 เริ่มเรียบเรียงข่าว", t
 
                     gemini_client = genai.Client(api_key=gemini_api_key)
                     response = gemini_client.models.generate_content(
-                        model="gemini-2.0-flash",
+                        model="gemini-3.6-flash",
                         contents=prompt
                     )
 
