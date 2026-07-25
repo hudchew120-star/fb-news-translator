@@ -37,13 +37,14 @@ def scrape_content(url_link, token):
     # 2. กรณีเป็น X (Twitter)
     elif "x.com" in url_lower or "twitter.com" in url_lower:
         apify_client = ApifyClient(token)
-        run_input = {"startUrls": [url_link], "tweetsDesired": 1}
-        run = apify_client.actor("apify/tweet-scraper").call(run_input=run_input)
+        # เปลี่ยนเป็น Actor 'apidojo/tweet-scraper' ที่มีอยู่จริงบน Apify
+        run_input = {"startUrls": [url_link], "maxItems": 1}
+        run = apify_client.actor("apidojo/tweet-scraper").call(run_input=run_input)
         dataset_id = run.get("defaultDatasetId") if isinstance(run, dict) else getattr(run, "default_dataset_id", getattr(run, "defaultDatasetId", None))
         
         extracted_text = ""
         for item in apify_client.dataset(dataset_id).iterate_items():
-            text_content = item.get("full_text") or item.get("text") or ""
+            text_content = item.get("full_text") or item.get("text") or item.get("caption") or ""
             if text_content:
                 extracted_text += text_content + "\n"
         return extracted_text, "X (Twitter)"
