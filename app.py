@@ -114,15 +114,40 @@ if st.button("🚀 เริ่มเรียบเรียงข่าว", t
                     {raw_text}
                     """
 
-                    gemini_client = genai.Client(api_key=gemini_api_key)
-                    response = gemini_client.models.generate_content(
-                        model="gemini-3.6-flash",
-                        contents=prompt
-                    )
+                    # รายชื่อโมเดลเรียงตามลำดับความสำคัญ (Fallback List)
+                    models_to_try = [
+                        "gemini-3.6-flash",
+                        "gemini-3.5-flash",
+                        "gemini-3.4-flash",
+                        "gemini-3.6-flash-lite",
+                        "gemini-3.2-flash-lite"
+                    ]
 
-                    st.success("✨ เรียบเรียงข่าวสำเร็จ!")
-                    st.markdown("---")
-                    st.markdown(response.text)
+                    gemini_client = genai.Client(api_key=gemini_api_key)
+                    response = None
+                    used_model = ""
+
+                    # วนลูปทดสอบรันทีละตัว
+                    for model_name in models_to_try:
+                        try:
+                            response = gemini_client.models.generate_content(
+                                model=model_name,
+                                contents=prompt
+                            )
+                            if response and response.text:
+                                used_model = model_name
+                                break
+                        except Exception as model_err:
+                            st.caption(f"⚠️ โมเดล {model_name} ไม่พร้อมใช้งาน กำลังสลับไปใช้โมเดลสำรอง...")
+                            continue
+
+                    # แสดงผล
+                    if response and response.text:
+                        st.success(f"✨ เรียบเรียงข่าวสำเร็จ! (ประมวลผลด้วย: `{used_model}`)")
+                        st.markdown("---")
+                        st.markdown(response.text)
+                    else:
+                        st.error("❌ โมเดล Gemini ทุกตัวไม่พร้อมใช้งานในขณะนี้ กรุณาลองใหม่อีกครั้ง")
 
             except Exception as e:
-                st.error(f"เกิดข้อผิดพลาด: {e}")
+                st.error(f"เกิดข้อผิดพลาดในการดึงข้อมูล: {e}")
