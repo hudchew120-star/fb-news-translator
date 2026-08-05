@@ -3,3 +3,4 @@ apify-client
 google-genai
 requests
 beautifulsoup4
+starlette<0.40.0
