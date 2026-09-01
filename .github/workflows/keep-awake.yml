@@ -1,0 +1,23 @@
+name: Keep Streamlit Awake
+
+on:
+  schedule:
+    - cron: '0 */5 * * *'   # รันทุก 5 ชั่วโมง (เวลา UTC)
+  workflow_dispatch:         # กดรันเองได้จากแท็บ Actions
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install chromium
+      - name: Visit app to keep it awake
+        env:
+          APP_URL: https://fb-news-translator-pkxqszjeknvdwrldfax3bz.streamlit.app/
+        run: python keep_awake.py
