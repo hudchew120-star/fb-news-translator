@@ -18,6 +18,20 @@ apify_token = st.secrets.get("APIFY_TOKEN", "")
 
 HISTORY_FILE = "history.json"
 MAX_HISTORY = 10
+PAGE_TAG = "#พุ่งล้ม"   # ลายเซ็นเพจ ใส่นำหน้าแฮชแท็กทุกโพสต์อัตโนมัติ
+
+def ensure_page_tag(tags):
+    """คืนลิสต์แฮชแท็กที่มี #พุ่งล้ม อยู่หน้าสุดเสมอ (กันซ้ำ)"""
+    norm = []
+    for t in (tags or []):
+        t = str(t).strip()
+        if not t:
+            continue
+        if not t.startswith("#"):
+            t = "#" + t
+        if t.lower() != PAGE_TAG.lower():
+            norm.append(t)
+    return [PAGE_TAG] + norm
 
 MODELS = [
     "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.4-flash",
@@ -110,9 +124,8 @@ def build_copy_text(data):
     pts = data.get("key_points") or []
     if pts:
         parts.append("\n".join("• " + str(p).strip() for p in pts))
-    tags = data.get("hashtags") or []
-    if tags:
-        parts.append(" ".join((t if str(t).startswith("#") else "#"+str(t)) for t in tags))
+    tags = ensure_page_tag(data.get("hashtags"))
+    parts.append(" ".join(tags))
     return "\n\n".join(parts).strip()
 
 def render_copy_button(copy_text, label="📋 คัดลอกทั้งหมด", h=90):
@@ -371,7 +384,7 @@ def render_news_mode():
                                     "headline": data.get("headline", ""),
                                     "body": data.get("body", ""),
                                     "key_points": data.get("key_points", []),
-                                    "hashtags": data.get("hashtags", []),
+                                    "hashtags": ensure_page_tag(data.get("hashtags")),
                                     "source": src, "url": url,
                                     "id": str(int(time.time() * 1000)),
                                     "time": time.strftime("%d/%m %H:%M"),
@@ -392,7 +405,7 @@ def render_news_mode():
                 for p in item["key_points"]:
                     st.markdown("- " + str(p))
             if item.get("hashtags"):
-                st.markdown("**🏷️ " + " ".join((t if str(t).startswith("#") else "#"+str(t)) for t in item["hashtags"]) + "**")
+                st.markdown("**🏷️ " + " ".join(ensure_page_tag(item["hashtags"])) + "**")
             st.markdown("---")
             render_copy_button(build_copy_text(item), "📋 คัดลอกทั้งหมด (หัวข่าว + เนื้อหา + #)")
             with st.expander("🎙️ ทำสคริปต์พูดจากข่าวนี้ (30วิ–1นาที)"):
@@ -412,7 +425,7 @@ def render_news_mode():
             with st.expander(f"{i+1}. {head}  ·  🕒 {it.get('time','')}  ·  {it.get('source','')}"):
                 st.write(it.get("body", ""))
                 if it.get("hashtags"):
-                    st.markdown("**🏷️ " + " ".join((t if str(t).startswith("#") else "#"+str(t)) for t in it["hashtags"]) + "**")
+                    st.markdown("**🏷️ " + " ".join(ensure_page_tag(it["hashtags"])) + "**")
                 render_copy_button(build_copy_text(it), "📋 คัดลอกข่าวนี้", h=90)
                 st.markdown("**🎙️ ทำสคริปต์พูดสำหรับคลิป**")
                 render_script_ui(it, it.get("id", str(i)))
